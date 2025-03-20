@@ -94,7 +94,7 @@ class AudioApp:
         # Frame superior con botones
         control_frame = ctk.CTkFrame(self.main_container)
         control_frame.pack(fill="x", pady=10)
-        
+
         # Botón de regreso
         ctk.CTkButton(control_frame,
                     text="Menú Principal",
@@ -104,10 +104,23 @@ class AudioApp:
                     height=35,
                     fg_color="transparent",
                     border_width=1).pack(side="left", padx=10)
+
+        # Campo para tiempo de grabación
+        time_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
+        time_frame.pack(side="left", padx=10)
+
+        ctk.CTkLabel(time_frame, 
+                    text="Tiempo (s):", 
+                    font=("Arial", 11)).pack(side="left", padx=5)
         
+        self.entry_time_audio = ctk.CTkEntry(time_frame, 
+                                            width=100,
+                                            placeholder_text="2")
+        self.entry_time_audio.pack(side="left", padx=5)
+
         # Botones de control
         ctk.CTkButton(control_frame,
-                    text="Grabar Audio (2s)",
+                    text="Grabar Audio",
                     image=self.record_image,
                     command=self.record_audio,
                     width=150,
@@ -129,7 +142,7 @@ class AudioApp:
                     command=self.play_filtered,
                     width=150,
                     height=35).pack(side="left", padx=10)
-        
+
         # Área de gráficos
         graph_frame = ctk.CTkFrame(self.main_container)
         graph_frame.pack(fill="both", expand=True)
@@ -177,6 +190,11 @@ class AudioApp:
                 self.senal_filtrada.append(self.senal_original[i])
 
     def record_audio(self):
+        # Obtener tiempo de grabación
+        self.duracion = float(self.entry_time_audio.get())
+        if self.duracion <= 0:
+            raise ValueError("El tiempo debe ser mayor a 0")
+        
         # Función de grabación y procesamiento
         grabacion = sd.rec(int(self.duracion * self.fs_high), 
                          samplerate=self.fs_high, 
@@ -237,6 +255,19 @@ class AudioApp:
         center_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
         center_frame.pack(side="left", expand=True)  # Centrar horizontalmente
 
+        # Campo para tiempo de grabación
+        time_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
+        time_frame.pack(pady=5)
+
+        ctk.CTkLabel(time_frame, 
+                    text="Tiempo (s):", 
+                    font=("Arial", 11)).pack(side="left", padx=5)
+        
+        self.entry_time = ctk.CTkEntry(time_frame, 
+                                    width=100,
+                                    placeholder_text="2")
+        self.entry_time.pack(side="left", padx=5)
+
         # Frecuencia alta
         freq_high_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
         freq_high_frame.pack(pady=5)
@@ -254,8 +285,8 @@ class AudioApp:
                     text="Grabar",
                     image=self.record_image,
                     command=lambda: self.record_nyquist("high"),
-                    width=80,
-                    height=30).pack(side="left", padx=5)
+                    width=120,
+                    height=35).pack(side="left", padx=5)
         
         self.btn_high = ctk.CTkButton(
             freq_high_frame,
@@ -287,8 +318,8 @@ class AudioApp:
                     text="Grabar",
                     image=self.record_image,
                     command=lambda: self.record_nyquist("low"),
-                    width=80,
-                    height=30).pack(side="left", padx=5)
+                    width=120,
+                    height=35).pack(side="left", padx=5)
         
         self.btn_low = ctk.CTkButton(
             freq_low_frame,
@@ -307,9 +338,14 @@ class AudioApp:
         self.figure_nyquist = Figure(figsize=(8, 5), dpi=100)
         self.canvas_nyquist = FigureCanvasTkAgg(self.figure_nyquist, master=self.main_container)
         self.canvas_nyquist.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
-        
+
     def record_nyquist(self, tipo):
         try:
+            # Obtener tiempo de grabación
+            self.duracion = float(self.entry_time.get())
+            if self.duracion <= 0:
+                raise ValueError("El tiempo debe ser mayor a 0")
+        
             # Obtener frecuencia del campo correspondiente
             if tipo == "high":
                 fs = int(self.entry_fs_high.get())
@@ -340,6 +376,7 @@ class AudioApp:
                 self.senal_low = []
                 for i in range(len(senal)):
                     if i % 2 == 0 and i != 0:
+                        self.senal_low.append(sum([senal[i], senal[i-1]])/2)
                         self.senal_low.append(sum([senal[i], senal[i-1]])/2)
                         self.senal_low.append(senal[i])
                     else:
@@ -399,28 +436,28 @@ class AudioApp:
         if tipo == "high":
             self.playing_high = not self.playing_high
             if self.playing_high:
-                self.btn_high.configure(image=self.pause_image, text=" Pausar Alta")
+                self.btn_high.configure(image=self.pause_image, text=" Pausar")
                 self.play_nyquist("high")
             else:
-                self.btn_high.configure(image=self.play_image, text=" Reproducir Alta")
+                self.btn_high.configure(image=self.play_image, text=" Reproducir")
                 self.stop_playback("high")
         
         elif tipo == "low":
             self.playing_low = not self.playing_low
             if self.playing_low:
-                self.btn_low.configure(image=self.pause_image, text=" Pausar Baja")
+                self.btn_low.configure(image=self.pause_image, text=" Pausar")
                 self.play_nyquist("low")
             else:
-                self.btn_low.configure(image=self.play_image, text=" Reproducir Baja")
+                self.btn_low.configure(image=self.play_image, text=" Reproducir")
                 self.stop_playback("low")
     
     def play_nyquist(self, tipo):
         if tipo == "high" and hasattr(self, 'senal_high'):
             sd.play(self.senal_high, self.fs_high, blocking=False)
-            self.btn_low.configure(image=self.play_image, text=" Reproducir Baja")
+            self.btn_low.configure(image=self.play_image, text=" Reproducir")
         elif tipo == "low" and hasattr(self, 'senal_low'):
             sd.play(self.senal_low, self.fs_low, blocking=False)
-            self.btn_high.configure(image=self.play_image, text=" Reproducir Alta")
+            self.btn_high.configure(image=self.play_image, text=" Reproducir")
 
     def stop_playback(self, tipo):
         sd.stop()
