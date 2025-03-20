@@ -1,9 +1,10 @@
 import customtkinter as ctk
+import tkinter as tk
 import sounddevice as sd
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from scipy.signal import resample
+import matplotlib.pyplot as plt
 from PIL import Image
 
 ctk.set_appearance_mode("Dark")
@@ -40,7 +41,7 @@ class AudioApp:
         self.duracion = 2
         self.fs_high = 44100  # Frecuencia de Nyquist alta
         self.fs_low = 11025    # Frecuencia de Nyquist baja (para demostración)
-        self.ventana_filtro = 350
+        self.m = 50 #50 #60 #80 #260
         self.nivel_ruido = 0.1
         
         self.main_container = ctk.CTkFrame(master)
@@ -144,19 +145,37 @@ class AudioApp:
         ctk.CTkLabel(config_frame, text="Tamaño del Filtro:").pack(side="left", padx=10)
         self.filter_slider = ctk.CTkSlider(config_frame,
                                         from_=10,
-                                        to=500,
-                                        number_of_steps=49,
+                                        to=2000,
+                                        number_of_steps=199,
                                         command=self.update_filter)
-        self.filter_slider.set(self.ventana_filtro)
+        self.filter_slider.set(self.m)
         self.filter_slider.pack(side="left", padx=10)
         
-        self.filter_label = ctk.CTkLabel(config_frame, text=f"Valor: {self.ventana_filtro}")
+        self.filter_label = ctk.CTkLabel(config_frame, text=f"Valor: {self.m}")
         self.filter_label.pack(side="left", padx=10)
 
     def update_filter(self, value):
-        self.ventana_filtro = int(value)
-        self.filter_label.configure(text=f"Valor: {self.ventana_filtro}")
+        self.m = int(value)
+        self.filter_label.configure(text=f"Valor: {self.m}")
         
+    def filtro_media_movil(self):
+        ventana = []
+        self.senal_filtrada = []
+        
+        for i in range(len(self.senal_original)):
+            ventana.append(self.senal_original[i])
+            
+            # Mantener ventana de tamaño máximo m
+            if len(ventana) > self.m:
+                ventana.pop(0)  # Eliminar el elemento más antiguo (FIFO)
+            
+            # Calcular media solo si la ventana está llena
+            if len(ventana) == self.m:
+                media = sum(ventana) / self.m
+                self.senal_filtrada.append(media)
+            else:
+                self.senal_filtrada.append(self.senal_original[i])
+
     def record_audio(self):
         # Función de grabación y procesamiento
         grabacion = sd.rec(int(self.duracion * self.fs_high), 
@@ -164,16 +183,10 @@ class AudioApp:
                          channels=1)
         sd.wait()
         
-        senal_original = grabacion.flatten()
-        senal_original = senal_original / np.max(np.abs(senal_original))
+        self.senal_original = grabacion.flatten()
+        self.senal_original = self.senal_original / np.max(np.abs(self.senal_original))
         
-        ruido = np.random.normal(0, self.nivel_ruido, len(senal_original))
-        self.senal_ruidosa = senal_original + ruido
-        self.senal_ruidosa = self.senal_ruidosa / np.max(np.abs(self.senal_ruidosa))
-        
-        ventana = np.ones(self.ventana_filtro) / self.ventana_filtro
-        self.senal_filtrada = np.convolve(self.senal_ruidosa, ventana, mode='same')
-        self.senal_filtrada = self.senal_filtrada / np.max(np.abs(self.senal_filtrada))
+        self.filtro_media_movil()
         
         self.plot_signals()
         
@@ -181,7 +194,7 @@ class AudioApp:
         self.figure.clear()
         
         ax1 = self.figure.add_subplot(211)
-        ax1.plot(self.senal_ruidosa, color='#00ffaa')
+        ax1.plot(self.senal_original, color='#00ffaa')
         ax1.set_title('Señal con Ruido', fontsize=10, color='white')
         ax1.set_facecolor('#2b2b2b')
         ax1.grid(color='#404040')
@@ -197,8 +210,8 @@ class AudioApp:
         self.canvas.draw()
         
     def play_original(self):
-        if hasattr(self, 'senal_ruidosa'):
-            sd.play(self.senal_ruidosa, self.fs_high)
+        if hasattr(self, 'senal_original'):
+            sd.play(self.senal_original, self.fs_high)
             sd.wait()
             
     def play_filtered(self):
@@ -208,8 +221,9 @@ class AudioApp:
     
     def create_nyquist_interface(self):
         control_frame = ctk.CTkFrame(self.main_container)
-        control_frame.pack(fill="x", pady=10)
-        
+        control_frame.pack(fill="x", pady=10, padx=10)
+
+        # Botón de regreso
         ctk.CTkButton(control_frame,
                     text="Menú Principal",
                     image=self.back_image,
@@ -217,97 +231,169 @@ class AudioApp:
                     width=150,
                     height=35,
                     fg_color="transparent",
-                    border_width=1).pack(side="left", padx=10)
+                    border_width=1).pack(side="left", padx=5, pady=5)
+
+        # Marco para centrar los inputs y botones
+        center_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
+        center_frame.pack(side="left", expand=True)  # Centrar horizontalmente
+
+        # Frecuencia alta
+        freq_high_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
+        freq_high_frame.pack(pady=5)
+
+        ctk.CTkLabel(freq_high_frame, 
+                    text="Frec Alta (Hz):", 
+                    font=("Arial", 11)).pack(side="left", padx=5)
         
-        ctk.CTkButton(control_frame,
-                    text="Grabar Alta Frecuencia",
+        self.entry_fs_high = ctk.CTkEntry(freq_high_frame, 
+                                        width=100,
+                                        placeholder_text="44100")
+        self.entry_fs_high.pack(side="left", padx=5)
+        
+        ctk.CTkButton(freq_high_frame,
+                    text="Grabar",
                     image=self.record_image,
                     command=lambda: self.record_nyquist("high"),
-                    width=180,
-                    height=35).pack(side="left", padx=10)
+                    width=80,
+                    height=30).pack(side="left", padx=5)
         
-        ctk.CTkButton(control_frame,
-                    text="Grabar Baja Frecuencia",
-                    image=self.record_image,
-                    command=lambda: self.record_nyquist("low"),
-                    width=180,
-                    height=35).pack(side="left", padx=10)
-        
-        # Botones modificados con estados
         self.btn_high = ctk.CTkButton(
-            control_frame,
-            text=" Reproducir Alta",
+            freq_high_frame,
+            text=" Reproducir",
             image=self.play_image,
             command=lambda: self.toggle_play("high"),
-            width=150,
+            width=120,
             height=35,
             fg_color="#4CAF50",
             hover_color="#45a049",
             compound="left"
         )
-        self.btn_high.pack(side="left", padx=10)
+        self.btn_high.pack(side="left", padx=5)
+
+        # Frecuencia baja
+        freq_low_frame = ctk.CTkFrame(center_frame, fg_color="transparent")
+        freq_low_frame.pack(pady=5)
+
+        ctk.CTkLabel(freq_low_frame, 
+                    text="Frec Baja (Hz):", 
+                    font=("Arial", 11)).pack(side="left", padx=5)
+        
+        self.entry_fs_low = ctk.CTkEntry(freq_low_frame, 
+                                        width=100,
+                                        placeholder_text="11025")
+        self.entry_fs_low.pack(side="left", padx=5)
+        
+        ctk.CTkButton(freq_low_frame,
+                    text="Grabar",
+                    image=self.record_image,
+                    command=lambda: self.record_nyquist("low"),
+                    width=80,
+                    height=30).pack(side="left", padx=5)
         
         self.btn_low = ctk.CTkButton(
-            control_frame,
-            text=" Reproducir Baja",
+            freq_low_frame,
+            text=" Reproducir",
             image=self.play_image,
             command=lambda: self.toggle_play("low"),
-            width=150,
+            width=120,
             height=35,
             fg_color="#4CAF50",
             hover_color="#45a049",
             compound="left"
         )
-        self.btn_low.pack(side="left", padx=10)
-        
+        self.btn_low.pack(side="left", padx=5)
+
+        # Gráfico
         self.figure_nyquist = Figure(figsize=(8, 5), dpi=100)
         self.canvas_nyquist = FigureCanvasTkAgg(self.figure_nyquist, master=self.main_container)
         self.canvas_nyquist.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
         
     def record_nyquist(self, tipo):
-        """Realiza grabación en la frecuencia especificada"""
-        fs = self.fs_high if tipo == "high" else self.fs_low
-        print(f"Grabando a {fs} Hz...")
-        
-        grabacion = sd.rec(int(self.duracion * fs),
-                        samplerate=fs,
-                        channels=1)
-        sd.wait()
-        
-        senal = grabacion.flatten()
-        senal = senal / np.max(np.abs(senal))
-        
-        if tipo == "high":
-            self.senal_high = senal
-            self.t_high = np.linspace(0, self.duracion, len(self.senal_high))
-        else:
-            # Remuestreo para igualar longitud manteniendo características de frecuencia
-            self.senal_low = resample(senal, len(self.senal_high))
-            self.t_low = np.linspace(0, self.duracion, len(self.senal_low))
-        
-        self.plot_nyquist()
+        try:
+            # Obtener frecuencia del campo correspondiente
+            if tipo == "high":
+                fs = int(self.entry_fs_high.get())
+            else:
+                fs = int(self.entry_fs_low.get())
+                
+            # Validar frecuencia
+            if fs <= 0:
+                raise ValueError("La frecuencia debe ser mayor a 0")
+                
+            print(f"Grabando a {fs} Hz...")
+            
+            grabacion = sd.rec(int(self.duracion * fs),
+                            samplerate=fs,
+                            channels=1)
+            sd.wait()
+            
+            senal = grabacion.flatten()
+            senal = senal / np.max(np.abs(senal))
+            
+            # Almacenar con la frecuencia usada
+            if tipo == "high":
+                self.fs_high = fs
+                self.senal_high = senal
+            else:
+                self.fs_low = fs
+                # self.senal_low = senal
+                self.senal_low = []
+                for i in range(len(senal)):
+                    if i % 2 == 0 and i != 0:
+                        self.senal_low.append(sum([senal[i], senal[i-1]])/2)
+                        self.senal_low.append(senal[i])
+                    else:
+                        self.senal_low.append(senal[i])
+            print(len(self.senal_low))
+            self.plot_nyquist()
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            #tk.messagebox.showerror("Error", f"Frecuencia inválida: {str(e)}")
     
-    def plot_nyquist(self):        
+    def plot_nyquist(self):
         if hasattr(self, 'senal_high') and hasattr(self, 'senal_low'):
             self.figure_nyquist.clear()
-        
-            ax1 = self.figure_nyquist.add_subplot(211)
-            ax1.plot(self.senal_high, color='#00ffaa')
-            ax1.set_title(f'Alta Frecuencia ({self.fs_high} Hz)', fontsize=10, color='white')
-            ax1.set_facecolor('#2b2b2b')
-            ax1.grid(color='#404040')
             
-            ax2 = self.figure_nyquist.add_subplot(212)
-            ax2.plot(self.senal_low, color='#ff6666')
-            ax2.set_title(f'Baja Frecuencia ({self.fs_low} Hz)', fontsize=10, color='white')
-            ax2.set_facecolor('#2b2b2b')
-            ax2.grid(color='#404040')
+            # Crear ejes de tiempo para ambas señales
+            time_high = np.linspace(0, self.duracion, len(self.senal_high))
+            time_low = np.linspace(0, self.duracion, len(self.senal_low))
             
-            self.figure_nyquist.patch.set_facecolor('#333333')
-            self.figure_nyquist.tight_layout()
+            # Configurar estilo del gráfico
+            plt_style = {
+                'axes.facecolor': '#2b2b2b',
+                'axes.edgecolor': 'white',
+                'axes.labelcolor': 'white',
+                'xtick.color': 'white',
+                'ytick.color': 'white',
+                'grid.color': '#404040'
+            }
+            
+            with plt.rc_context(plt_style):
+                # Gráfico para alta frecuencia
+                ax1 = self.figure_nyquist.add_subplot(211)
+                ax1.plot(time_high, self.senal_high, '#00ffaa', linewidth=0.8)
+                ax1.set_title(f'Alta Frecuencia ({self.fs_high} Hz)', fontsize=10, pad=10, color="white")
+                ax1.set_ylabel('Amplitud', fontsize=8)
+                ax1.grid(True, linestyle='--', alpha=0.5)
+                ax1.set_xlim(0, self.duracion)
+                
+                # Gráfico para baja frecuencia
+                ax2 = self.figure_nyquist.add_subplot(212)
+                ax2.plot(time_low, self.senal_low, '#ff6666', linewidth=0.8)
+                ax2.set_title(f'Baja Frecuencia ({self.fs_low} Hz)', fontsize=10, pad=10, color="white")
+                ax2.set_xlabel('Tiempo (s)', fontsize=8)
+                ax2.set_ylabel('Amplitud', fontsize=8)
+                ax2.grid(True, linestyle='--', alpha=0.5)
+                ax2.set_xlim(0, self.duracion)
+                
+                # Ajustar espacios
+                self.figure_nyquist.subplots_adjust(hspace=0.4)
+                self.figure_nyquist.patch.set_facecolor('#333333')
+                
             self.canvas_nyquist.draw()
         else:
-            print("No se pudo graficar: plot_nyquist ")
+            print("Error: No hay señales grabadas para graficar")
 
     def toggle_play(self, tipo):
         if tipo == "high":
