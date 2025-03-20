@@ -344,7 +344,7 @@ class AudioApp:
                         self.senal_low.append(senal[i])
                     else:
                         self.senal_low.append(senal[i])
-            print(len(self.senal_low))
+                print(len(self.senal_low))
             self.plot_nyquist()
             
         except Exception as e:
