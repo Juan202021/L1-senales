@@ -33,6 +33,12 @@ class AudioApp:
                                       dark_image=Image.open("./Assets/Img/mic.png"),
                                       size=(20, 20))
         
+        # Cargar la imagen de fondo
+        bg_image = Image.open("./Assets/Img/bg.webp")
+
+        # Convertir la imagen PIL a CTkImage
+        self.bg = ctk.CTkImage(bg_image, size=(1900, 1000))  # Ajusta el tamaño al de la ventana
+
         # Estados de reproducción
         self.playing_high = False
         self.playing_low = False
@@ -46,13 +52,18 @@ class AudioApp:
         
         self.main_container = ctk.CTkFrame(master)
         self.main_container.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Crear un CTkLabel para el fondo
+        self.background_label = ctk.CTkLabel(self.main_container, image=self.bg, text="")
+        self.background_label.place(relwidth=1, relheight=1)  # Ocupa todo el espacio del frame
         
         self.show_main_menu()
         
     def show_main_menu(self):
         # Limpiar contenedor
         for widget in self.main_container.winfo_children():
-            widget.destroy()
+            if widget != self.background_label:  # No destruir el fondo
+                widget.destroy()
         
         # Frame del menú
         menu_frame = ctk.CTkFrame(self.main_container, width=400)
@@ -60,7 +71,7 @@ class AudioApp:
         
         # Botones del menú
         ctk.CTkLabel(menu_frame, 
-                   text="Menú",
+                   text="Análisis de Señales",
                    font=("Helvetica", 24, "bold")).pack(pady=40)
         
         ctk.CTkButton(menu_frame,
@@ -80,13 +91,15 @@ class AudioApp:
     def show_audio_interface(self):
         # Limpiar contenedor principal
         for widget in self.main_container.winfo_children():
-            widget.destroy()
+            if widget != self.background_label:  # No destruir el fondo
+                widget.destroy()
         self.create_audio_interface()
         
     def show_nyquist_interface(self):
         # Limpiar contenedor principal
         for widget in self.main_container.winfo_children():
-            widget.destroy()
+            if widget != self.background_label:  # No destruir el fondo
+                widget.destroy()
         self.create_nyquist_interface()
     
     # Sección para filtrado de audio (original)
@@ -106,7 +119,7 @@ class AudioApp:
                     border_width=1).pack(side="left", padx=10)
 
         # Campo para tiempo de grabación
-        time_frame = ctk.CTkFrame(control_frame, fg_color="transparent")
+        time_frame = ctk.CTkFrame(control_frame)
         time_frame.pack(side="left", padx=10)
 
         ctk.CTkLabel(time_frame, 
@@ -160,7 +173,7 @@ class AudioApp:
                                         from_=10,
                                         to=2000,
                                         number_of_steps=199,
-                                        command=self.update_filter)
+                                        command=self.update_filter, width=500)
         self.filter_slider.set(self.m)
         self.filter_slider.pack(side="left", padx=10)
         
